@@ -127,3 +127,18 @@ int retrieve_data_from_firmware(unsigned char *data, int data_size)
 	return err;
 }
 
+void get_filename(const char *path,char *filename)
+{
+  const char *last_slash = strrchr(path,'/');
+  if(last_slash)
+  {
+    strcpy(filename,last_slash + 1);
+  }else
+  {
+    strcpy(filename, path);
+  }
+}
+
+
+
+

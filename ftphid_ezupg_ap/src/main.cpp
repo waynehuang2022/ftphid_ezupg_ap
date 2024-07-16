@@ -22,6 +22,7 @@
 #include <unistd.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <string.h>
 
 #include "global.h"
 #include "ftputility.h"
@@ -33,12 +34,12 @@
 
 //FTP_EZ_UPG_VERSION
 #ifndef FTP_EZ_UPG_VERSION
-#define	FTP_EZ_UPG_VERSION 	    "1.2"
+#define	FTP_EZ_UPG_VERSION 	    "2.0"
 #endif //FTP_EZ_UPG_VERSION
 
 // SW Release Date
 #ifndef FTP_EZ_UPG_RELEASE_DATE
-#define FTP_EZ_UPG_RELEASE_DATE	    "2024-07-08"
+#define FTP_EZ_UPG_RELEASE_DATE	    "2024-07-16"
 #endif //FTP_EZ_UPG_RELEASE_DATE
 
 // File Length
@@ -63,7 +64,7 @@ bool g_debug = false;
 
 // Firmware File Information
 char g_firmware_filename[FILE_NAME_LENGTH_MAX] = {0};
-
+char g_ic_name[FILE_NAME_LENGTH_MAX] = {0};
 // Firmware Inforamtion
 bool bFW_Ver = false;
 bool bSW_Ver = false;
@@ -77,18 +78,19 @@ bool g_quiet = false;
 // Help Info.
 bool g_help = false;
 
-
+int g_pid =0;
 // Parameter Option Settings
-const char* const short_options = "u:fvth";
+const char* const short_options = "u:fvthP:";
 
 
 const struct option long_options[] =
 {
-	{ "Upgrade",				1, NULL, 'u'},
+	{ "Upgrade",				1, NULL, 'u'},	
 	{ "get-fw-version",			0, NULL, 'f'},
 	{ "get-sw-version",			0, NULL, 'v'},
 	{ "test",					0, NULL, 't'},	
 	{ "help",					0, NULL, 'h'},
+	{ "Set-Pid",				1, NULL, 'P'},
 };
 
 
@@ -134,8 +136,8 @@ void show_help_information(void)
  ******************************************/
 int open_device(void)
 {
-	u8 ret = COMM_HID_OK;
-	int g_pid = 0x0301;
+    u8 ret = COMM_HID_OK;
+    //g_pid = 0x0101;
     // open specific device on i2c bus //pseudo function
 
     /*** example *********************/
@@ -236,8 +238,11 @@ int process_assignment(int argc, char **argv)
 	int ret = PROCESS_ERR_OK;
 	int c = 0;
 	int file_path_len = 0;	
+	int pid_len = 0;	
 	char file_path[FILE_NAME_LENGTH_MAX] = {0};
-	
+	char s_pid[FILE_NAME_LENGTH_MAX] = {0};
+	char p_file_name[FILE_NAME_LENGTH_MAX] = {0};
+	char *pch;
 	while((c = getopt_long (argc, argv, short_options, long_options, NULL)) != -1)
 	{
 		switch (c)
@@ -264,6 +269,17 @@ int process_assignment(int argc, char **argv)
 				bUpdate = true;
 				// Set Global File Path
 				strncpy(g_firmware_filename, file_path, strlen(file_path));
+				//strncpy(g_ic_name, file_path, strlen(file_path));
+				get_filename(file_path,p_file_name);
+				pch=strchr(p_file_name,'_');
+				
+				if(pch!=NULL)
+				{
+				 strncpy(g_ic_name, p_file_name, pch-p_file_name);
+				}
+				DEBUG_PRINTF("!!!!!!!!!!!!!!%s", g_ic_name);
+
+
 				DEBUG_PRINTF("%s: Update FW: %s, File Path: \"%s\".\r\n", __func__, (bUpdate) ? "Yes" : "No", g_firmware_filename);
 				DEBUG_PRINTF("Ready to Upgrade FW\r\n");
 			break;
@@ -277,6 +293,18 @@ int process_assignment(int argc, char **argv)
 			break;
 			case 'h':				
 				g_help = true;				
+			break;
+			case 'P':				
+				pid_len = strlen(optarg);
+				if (pid_len == 0) 
+				{
+				    ERROR_PRINTF("%s: pid (%s) Invalid!\r\n", __func__, optarg);
+				    ret = PROCESS_ERR_INVLID_PARAM;                   
+				}				
+				strcpy(s_pid, optarg);    
+				DEBUG_PRINTF("eztool get pid : %s", s_pid);
+				g_pid=strtol(s_pid,NULL,16);
+							
 			break;
 		    default:
 				DEBUG_PRINTF("Nothing\r\n");
@@ -311,8 +339,8 @@ int main(int argc, char **argv)
 	{	    
 	    printf("Get Bin File Fail: %d", ret);
 	    WriteLog("Get Bin File Fail: %d", ret);
-        return ret;
-    }
+            return ret;
+    	}
 	ret = open_device() ;
     if(ret)
 	{	    
@@ -324,8 +352,8 @@ int main(int argc, char **argv)
 	if(bFW_Ver)
 	{
 		get_fw_version_data(&fw_ver);	
-		printf("%d\r\n",fw_ver);
-		WriteLog("%d",fw_ver);
+		printf("%x\r\n",fw_ver);
+		WriteLog("%x",fw_ver);
 	}
     if(bSW_Ver)
     {
@@ -334,7 +362,23 @@ int main(int argc, char **argv)
     }
 	if(bUpdate)
 	{
-		HID_Program_Upgrade();
+		if(strncmp(g_ic_name, "FT3637", strlen(g_ic_name)) == 0)
+		{
+			//ERROR_PRINTF("Supported(IC: %s  )  !\r\n", g_ic_name);       
+			HID_Program_Upgrade_3637();                
+		}else if(strncmp(g_ic_name, "FT3438", strlen(g_ic_name)) == 0)
+		{
+			//ERROR_PRINTF("Supported(IC: %s  )  !\r\n", g_ic_name);       
+			HID_Program_Upgrade_3438(); 
+		}else if(strncmp(g_ic_name, "FT3437U", strlen(g_ic_name)) == 0)
+		{
+			//ERROR_PRINTF("Supported(IC: %s  )  !\r\n", g_ic_name);       
+			HID_Program_Upgrade_3437U(); 
+		}else
+		{
+			ERROR_PRINTF("Not Supported(IC: %s  )  !\r\n", g_ic_name);              
+		}
+		
 	}   
 
 	if(bTestRun)
