@@ -526,46 +526,81 @@ u8 COMM_FLASH_ExitUpgradeMode()
 }
 
 /**********************************************************
-HID_Program_Upgrade_3438: Begin to upgrade
+HID_Program_Upgrade: Begin to upgrade
 ***********************************************************/
-u8 HID_Program_Upgrade_3438()
+u8 GetFW_and_CheckSum(u16 chid, unsigned char *rbuf, unsigned int &MaxLength, unsigned int &Checksum)
 {
-
-	u8 g_DataBuffer[128* 1024] = {0};		    
-    u8 ProgramCode = PROGRAM_CODE_OK;
-	int ReCode;
-	u8 ucMode = 0;
-	u8 data[64];
-	unsigned int Checksum = 0, DValue = 0, FWChecksum;
-	unsigned int DataLen = 0, SentDataLen = 0;
-	u8 ucPacketType = 0;		
-	unsigned int Max_Length;
-	unsigned short usIcID;
-	const int UPGRADE_ID1=0x542C;
-	const int UPGRADE_ID2=0x545E;	
-	u8 retry;
-	u8 Step;
-	bool bUpgrading=false;   
-    unsigned int i=0;
-
-	
-	Max_Length = g_firmware_size;	
-    Max_Length = (Max_Length + 3) / 4 * 4;
-    
-	
-	memset(g_DataBuffer, 0xff, Max_Length);
-	
-    ReCode = retrieve_data_from_firmware(g_DataBuffer, g_firmware_size);
-
-	//Calculate FW checksum...
-	for(i=0; i<Max_Length ; i+=4)
+	u8 ReCode = 0;
+	unsigned int DValue = 0;
+	unsigned int i = 0;
+	unsigned char bChecksum[4]={0};	
+	if(chid == 0x545E)
 	{
-		DValue = (g_DataBuffer[i + 3] << 24) + (g_DataBuffer[i + 2] << 16) +(g_DataBuffer[i + 1] << 8) + g_DataBuffer[i];
+		MaxLength = g_firmware_size;	
+    	MaxLength = (MaxLength + 3) / 4 * 4;
+		memset(rbuf, 0xff, MaxLength);
+	}
+	else if(chid == 0x582E)
+	{
+		if(g_firmware_size<54*1024)		
+			MaxLength = 54 *1024;		
+		else		
+			MaxLength = g_firmware_size;
+		memset(rbuf, 0xff, MaxLength);	
+	}
+	else if(chid == 0x542C)
+	{
+		MaxLength = g_firmware_size;    
+	    MaxLength =  (MaxLength+255)/256 * 256;
+		if(MaxLength > 64*1024)
+	    	MaxLength = 64*1024;    	    
+		memset(rbuf, 0x00, MaxLength);
+	}
+	
+	ReCode = retrieve_data_from_firmware(rbuf, g_firmware_size);
+	//Calculate FW checksum...
+	Checksum = 0;
+	for(i = 0; i < MaxLength; i += 4)
+	{
+		DValue = (rbuf[i + 3] << 24) + (rbuf[i + 2] << 16) +(rbuf[i + 1] << 8) + rbuf[i];
 		Checksum ^= DValue;
 	}
 	
-	Checksum += 1;
-	
+	if(chid == 0x542C)
+	{
+		bChecksum[0] = ((unsigned char*)&Checksum)[0] + 1;
+		bChecksum[1] = ((unsigned char*)&Checksum)[1];
+		bChecksum[2] = ((unsigned char*)&Checksum)[2];
+		bChecksum[3] = ((unsigned char*)&Checksum)[3];
+		Checksum = ((unsigned int*)&bChecksum)[0];	
+	}
+	else
+	{	
+		Checksum += 1;
+	}
+	return ReCode;
+}
+
+/**********************************************************
+HID_Program_Upgrade: Begin to upgrade
+***********************************************************/
+u8 HID_Program_Upgrade()
+{
+
+	u8 g_DataBuffer[128* 1024] = {0};			
+	u8 ProgramCode = PROGRAM_CODE_OK;
+	int ReCode;
+	u8 ucMode = 0;
+	u8 data[64];	
+	unsigned int Checksum = 0, FWChecksum;
+	unsigned int DataLen = 0, SentDataLen = 0;
+	u8 ucPacketType = 0;		
+	unsigned int Max_Length;
+	unsigned short usIcID;		
+	u8 retry;
+	u8 Step;
+	bool bUpgrading=false;	 
+	unsigned int i=0;
 
 	Step=0;
 	retry=0;
@@ -574,9 +609,9 @@ u8 HID_Program_Upgrade_3438()
 	{
 		switch(Step)
 		{
-			case(USB_UPGRADE_ENTRY_BOOTLOADER):				
+			case(USB_UPGRADE_ENTRY_BOOTLOADER): 			
 				//Enter Upgrade Mode... AP->Bootloader
-				printf("Enter Upgrade Mode...\r\n");				
+				WriteLog("Enter Upgrade Mode...");				
 				COMM_FLASH_EnterUpgradeMode();
 				SleepMS(300);
 				Step=USB_UPGRADE_ENTRY_UPGRADE;
@@ -588,7 +623,7 @@ u8 HID_Program_Upgrade_3438()
 				ReCode = COMM_FLASH_EnterUpgradeMode();
 				if(ReCode == PROGRAM_CODE_OK)
 				{		
-				    SleepMS(100);
+					SleepMS(100);
 					ReCode = COMM_FLASH_CheckCurrentState(&ucMode);
 					if(ucMode == 1) //1: Upgrade Mode; 2: FW Mode
 					{
@@ -598,11 +633,11 @@ u8 HID_Program_Upgrade_3438()
 					else
 					{
 						SleepMS(200);	
-						printf("Get Current State, Times: %d...\r\n", retry++);
+						WriteLog("Get Current State, Times: %d...", retry++);
 						retry++;
 						if(retry==3)
 						{
-							printf("Failed to Get Current State! \r\n");
+							WriteLog("Failed to Get Current State! ");
 							ProgramCode = PROGRAM_CODE_ENTER_UPGRADE_MODE_ERROR;
 							Step=USB_UPGRADE_END;
 						}			
@@ -610,11 +645,11 @@ u8 HID_Program_Upgrade_3438()
 				}
 				else
 				{	
-					printf("Enter Upgrade Mode..%dS.\r\n", retry+1);
+					WriteLog("Enter Upgrade Mode..%dS.", retry+1);
 					retry++;
 					if(retry==3)
 					{
-						printf("Failed to enter Upgrade Mode! \r\n");
+						WriteLog("Failed to enter Upgrade Mode! ");
 						ProgramCode = PROGRAM_CODE_ENTER_UPGRADE_MODE_ERROR;
 						Step=USB_UPGRADE_END;
 					}					
@@ -628,33 +663,38 @@ u8 HID_Program_Upgrade_3438()
 					ReCode = COMM_FLASH_USB_ReadUpdateID(&usIcID);
 					if(ReCode != PROGRAM_CODE_OK)
 					{
-						printf("Read FT3538G id error. \r\n");
+						WriteLog("Read id error. ");
 						ProgramCode = PROGRAM_CODE_CHIP_ID_ERROR;
 						Step=USB_UPGRADE_END;
 						continue;
 					}
-					else
+					else						
 					{
-						if((UPGRADE_ID1!=usIcID) && (UPGRADE_ID2!=usIcID))
+						if(0x545E == usIcID || 0x582E == usIcID || 0x542C == usIcID)			
 						{
-							printf("%04X ID is error. \r\n", usIcID);
+							GetFW_and_CheckSum(usIcID, g_DataBuffer, Max_Length, Checksum);
+						}
+						else						
+						{
+							WriteLog("%04X ID is error. ", usIcID);
 							ProgramCode = PROGRAM_CODE_CHIP_ID_ERROR;
 							Step=USB_UPGRADE_END;
 							continue;
-						}			
+						}
 					}		
 					COMM_FLASH_USB_EraseFlash();			
 					SleepMS(1000);
-					printf("Erase Time: 1S \r\n");
+					WriteLog("Erase Time: 1S ");
 					Step=USB_UPGRADE_CHECK_ERASE_READY;
 					retry=0;
 				}
 				else
 				{	
+					SleepMS(50);
 					retry++;
 					if(retry==3)
 					{
-						printf("TP is not ready for upgrade \r\n");
+						WriteLog("TP is not ready for upgrade ");
 						ProgramCode = PROGRAM_CODE_ENTER_UPGRADE_MODE_ERROR;
 						Step=USB_UPGRADE_END;
 					}
@@ -674,10 +714,10 @@ u8 HID_Program_Upgrade_3438()
 				{					
 					SleepMS(500);
 					retry++;
-					printf("Erase Time: %d.%dS \r\n", (1+retry/2),(5*(retry%2)));
+					WriteLog("Erase Time: %d.%dS ", (1+retry/2),(5*(retry%2)));
 					if(retry==20)
 					{
-						printf("Erase Flash Error. \r\n"); 
+						WriteLog("Erase Flash Error. "); 
 						ProgramCode = PROGRAM_CODE_ERASE_FLASH_ERROR;
 						Step=USB_UPGRADE_END;
 					}
@@ -702,11 +742,11 @@ u8 HID_Program_Upgrade_3438()
 							memcpy(data, g_DataBuffer + SentDataLen, MAX_USB_PACKET_SIZE);
 							DataLen = MAX_USB_PACKET_SIZE;
 							if(SentDataLen)
-    							ucPacketType = MID_PACKET;
-						    else
-							    ucPacketType = FIRST_PACKET;
+								ucPacketType = MID_PACKET;
+							else
+								ucPacketType = FIRST_PACKET;
 						}
-						ReCode = COMM_FLASH_SendDataByUSB(ucPacketType, data, DataLen);						
+						ReCode = COMM_FLASH_SendDataByUSB(ucPacketType, data, DataLen); 					
 						retry++;
 					}
 
@@ -714,26 +754,26 @@ u8 HID_Program_Upgrade_3438()
 					{	
 						SentDataLen += DataLen;
 						if (SentDataLen < Max_Length)
-    					{
-    						ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
-    						if (PROGRAM_CODE_OK == ReCode)
-    						{
-    							printf("Updating %d bytes... \r\n", SentDataLen);
-    							retry = 0;
-    						}
-    						else
-    						{
-    							SleepMS(1);
-    							if (++retry > 20)
-    							{
-    								printf("Upgrade failed! \r\n");
-    								ProgramCode = PROGRAM_CODE_WRITE_FLASH_ERROR;
-    								COMM_FLASH_ExitUpgradeMode();		//Reset
-    								Step = USB_UPGRADE_END;
-    							}
+						{
+							ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
+							if (PROGRAM_CODE_OK == ReCode)
+							{
+								WriteLog("Updating %d bytes...", SentDataLen);
+								retry = 0;
+							}
+							else
+							{
+								SleepMS(1);
+								if (++retry > 20)
+								{
+									WriteLog("Upgrade failed! ");
+									ProgramCode = PROGRAM_CODE_WRITE_FLASH_ERROR;
+									COMM_FLASH_ExitUpgradeMode();		//Reset
+									Step = USB_UPGRADE_END;
+								}
 
-    						}
-    					}												
+							}
+						}												
 					}
 				}				
 				else
@@ -750,7 +790,7 @@ u8 HID_Program_Upgrade_3438()
 					{
 						if(++retry > 5)
 						{
-							printf("Upgrade failed!");
+							WriteLog("Upgrade failed!");
 							ProgramCode = PROGRAM_CODE_WRITE_FLASH_ERROR;
 							COMM_FLASH_ExitUpgradeMode();		//Reset
 							Step=USB_UPGRADE_END;
@@ -764,15 +804,15 @@ u8 HID_Program_Upgrade_3438()
 				if(ReCode == PROGRAM_CODE_OK)
 				{				
 					if(Checksum == FWChecksum)
-					{  						
-						printf("Checksum Right, PC:0x%x, FW:0x%x!", Checksum, FWChecksum);
+					{						
+						WriteLog("Checksum Right, PC:0x%x, FW:0x%x!", Checksum, FWChecksum);
 						Step=USB_UPGRADE_EXIT;
 						retry=0;
 						COMM_FLASH_ExitUpgradeMode();		//Reset
 					}
 					else
 					{	
-						printf("Checksum error, PC:0x%x, FW:0x%x!", Checksum, FWChecksum);						
+						WriteLog("Checksum error, PC:0x%x, FW:0x%x!", Checksum, FWChecksum);						
 						SleepMS(500);
 						ProgramCode = PROGRAM_CODE_CHECKSUM_ERROR;
 						Step=USB_UPGRADE_END;
@@ -784,16 +824,16 @@ u8 HID_Program_Upgrade_3438()
 					Step=USB_UPGRADE_END;
 				}					
 				break;
-			case(USB_UPGRADE_EXIT):	
+			case(USB_UPGRADE_EXIT): 
 				SleepMS(500);				
 				ReCode = ftp_ReadReg(0x9F,&data[0]);
 				ReCode = ftp_ReadReg(0xA3,&data[1]);
-				printf("Exit Upgrade Mode, Times: %d, id1=%x, id2=%x \r\n", retry,data[1],data[0]);				
-				if((data[1]==0x54)&&(data[0]==0x52))
+				WriteLog("Exit Upgrade Mode, Times: %d, id1=%x, id2=%x ", retry,data[1],data[0]);				
+				if(((data[1]==0x54)&&(data[0]==0x52)) || ((data[1]==0x58)&&(data[0]==0x22)) || ((data[1]==0x54)&&(data[0]==0x56)))
 				{					
 					Step=USB_UPGRADE_END;
 					retry=0;			
-					printf("Upgrade is successful! \r\n");
+					WriteLog("Upgrade is successful! ");
 				}
 				else
 				{
@@ -815,605 +855,7 @@ u8 HID_Program_Upgrade_3438()
 
 	return ProgramCode;
 }
-u8 HID_Program_Upgrade_3637()
-{
 
-	u8 g_DataBuffer[122* 1024] = {0};		    
-    u8 ProgramCode = PROGRAM_CODE_OK;
-	int ReCode;
-	u8 ucMode = 0;
-	u8 data[64];
-	unsigned int Checksum = 0, DValue = 0, FWChecksum;
-	unsigned int DataLen = 0, SentDataLen = 0;
-	u8 ucPacketType = 0;		
-	unsigned int Max_Length;
-	unsigned short usIcID;
-	const int UPGRADE_ID=0x582E;
-	u8 retry;
-	u8 Step;
-	bool bUpgrading=false;   
-    unsigned int i=0;	
-
-
-	if(g_firmware_size<54*1024)
-    {
-        Max_Length = 54 *1024;
-    }
-    else
-    {
-		Max_Length = g_firmware_size;	
-    }
-	
-	memset(g_DataBuffer,0xff,Max_Length);
-	
-    ReCode = retrieve_data_from_firmware(g_DataBuffer, g_firmware_size);
-
-	//Calculate FW checksum...
-	for(i=0; i<Max_Length ; i+=4)
-	{
-		DValue = (g_DataBuffer[i + 3] << 24) + (g_DataBuffer[i + 2] << 16) +(g_DataBuffer[i + 1] << 8) + g_DataBuffer[i];
-		Checksum ^= DValue;
-	}
-	
-	Checksum += 1;
-	
-
-	Step=0;
-	retry=0;
-	bUpgrading=true;
-	while(bUpgrading)
-	{
-		switch(Step)
-		{
-			case(USB_UPGRADE_ENTRY_BOOTLOADER):				
-				//Enter Upgrade Mode... AP->Bootloader
-				printf("Enter Upgrade Mode...\r\n");				
-				COMM_FLASH_EnterUpgradeMode();
-				SleepMS(1000);
-				Step=USB_UPGRADE_ENTRY_UPGRADE;
-				retry=0; 
-				break;
-			case(USB_UPGRADE_ENTRY_UPGRADE):
-				//MessageBox(NULL, "Step=1", "Upgrade", MB_OK);
-				//BootLoader start to upgrade
-				ReCode = COMM_FLASH_EnterUpgradeMode();
-				if(ReCode == PROGRAM_CODE_OK)
-				{				
-					ReCode = COMM_FLASH_CheckCurrentState(&ucMode);
-					if(ucMode == 1) //1: Upgrade Mode; 2: FW Mode
-					{
-						Step=USB_UPGRADE_ERASE_FLASH;
-						retry=0;
-					}
-					else
-					{
-						SleepMS(200);	
-						printf("Get Current State, Times: %d...\r\n", retry++);
-						retry++;
-						if(retry==3)
-						{
-							printf("Failed to Get Current State! \r\n");
-							ProgramCode = PROGRAM_CODE_ENTER_UPGRADE_MODE_ERROR;
-							Step=USB_UPGRADE_END;
-						}			
-					}
-				}
-				else
-				{	
-					printf("Enter Upgrade Mode..%dS.\r\n", retry+1);
-					retry++;
-					if(retry==3)
-					{
-						printf("Failed to enter Upgrade Mode! \r\n");
-						ProgramCode = PROGRAM_CODE_ENTER_UPGRADE_MODE_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-					SleepMS(1000);
-				}
-				break;
-			case(USB_UPGRADE_ERASE_FLASH):				
-				//Read chip id & Erase Flash
-				ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
-				if(ReCode == PROGRAM_CODE_OK)
-				{
-					ReCode = COMM_FLASH_USB_ReadUpdateID(&usIcID);
-					if(ReCode != PROGRAM_CODE_OK)
-					{
-						printf("Read FT3637 id error. \r\n");
-						ProgramCode = PROGRAM_CODE_CHIP_ID_ERROR;
-						Step=USB_UPGRADE_END;
-						continue;
-					}
-					else
-					{
-						if(UPGRADE_ID!=usIcID)
-						{
-							printf("FT3637 id error. \r\n");
-							ProgramCode = PROGRAM_CODE_CHIP_ID_ERROR;
-							Step=USB_UPGRADE_END;
-							continue;
-						}			
-					}		
-					COMM_FLASH_USB_EraseFlash();			
-					SleepMS(3000);
-					printf("Erase Time: 1S \r\n");
-					Step=USB_UPGRADE_CHECK_ERASE_READY;
-					retry=0;
-				}
-				else
-				{	
-					retry++;
-					if(retry==3)
-					{
-						printf("TP is not ready for upgrade \r\n");
-						ProgramCode = PROGRAM_CODE_ENTER_UPGRADE_MODE_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-				}
-				break;
-			case(USB_UPGRADE_CHECK_ERASE_READY):				
-				//Check Erase is Ready?
-				ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
-				if(ReCode == PROGRAM_CODE_OK)
-				{
-					Step=USB_UPGRADE_SEND_DATA;
-					retry=0;	
-					DataLen = 0;
-					SentDataLen=0;
-				}
-				else
-				{					
-					SleepMS(500);
-					retry++;
-					printf("Erase Time: %d.%dS \r\n", (1+retry/2),(5*(retry%2)));
-					if(retry==20)
-					{
-						printf("Erase Flash Error. \r\n"); 
-						ProgramCode = PROGRAM_CODE_ERASE_FLASH_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-				}
-				break;
-			case(USB_UPGRADE_SEND_DATA):				
-				//Send Packet Data 
-				if(SentDataLen < Max_Length)
-				{
-					if(retry==0)
-					{
-						DataLen=0;
-						memset(data, 0xff, sizeof(data));			
-						if(SentDataLen == 0)			
-							ucPacketType = FIRST_PACKET;			
-						else if(SentDataLen >= Max_Length - MAX_USB_PACKET_SIZE)			
-							ucPacketType = END_PACKET;			
-						else			
-							ucPacketType = MID_PACKET;
-						
-						if(SentDataLen + MAX_USB_PACKET_SIZE > Max_Length)
-						{
-							memcpy(data, g_DataBuffer + SentDataLen, Max_Length - SentDataLen);
-							DataLen = Max_Length - SentDataLen;
-						}
-						else
-						{				
-							memcpy(data, g_DataBuffer + SentDataLen, MAX_USB_PACKET_SIZE);
-							DataLen = MAX_USB_PACKET_SIZE;
-						}
-						ReCode = COMM_FLASH_SendDataByUSB(ucPacketType, data, DataLen);						
-						retry++;
-					}
-
-					if(retry>0)
-					{	
-						
-						ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
-						if(PROGRAM_CODE_OK == ReCode)
-						{
-							SentDataLen += DataLen;
-							printf("Updating %d bytes... \r\n", SentDataLen);							
-							retry=0;
-						}
-						else
-						{
-							SleepMS(2);
-							if(++retry>100)
-							{
-								printf("Upgrade failed! \r\n");
-								ProgramCode = PROGRAM_CODE_WRITE_FLASH_ERROR;
-								COMM_FLASH_ExitUpgradeMode();		//Reset
-								Step=USB_UPGRADE_END;
-							}
-
-						}						
-					}
-				}				
-				else
-				{
-					//Write flash End and check ready (fw calculate checksum)
-					SleepMS(100); 
-					ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
-					if(ReCode == PROGRAM_CODE_OK)	
-					{			
-						Step=USB_UPGRADE_CHECK_SUM;
-						retry=0;
-					}
-					else
-					{
-						if(++retry>5)
-						{
-							printf("Upgrade failed!");
-							ProgramCode = PROGRAM_CODE_WRITE_FLASH_ERROR;
-							COMM_FLASH_ExitUpgradeMode();		//Reset
-							Step=USB_UPGRADE_END;
-						}
-						
-					}
-				}
-				break;
-			case(USB_UPGRADE_CHECK_SUM):			
-				ReCode = COMM_FLASH_Checksum_Upgrade(&FWChecksum);
-				if(ReCode == PROGRAM_CODE_OK)
-				{				
-					if(Checksum == FWChecksum)
-					{  						
-						printf("Checksum Right, PC:0x%x, FW:0x%x!", Checksum, FWChecksum);
-						Step=USB_UPGRADE_EXIT;
-						retry=0;
-						COMM_FLASH_ExitUpgradeMode();		//Reset
-					}
-					else
-					{	
-						printf("Checksum error, PC:0x%x, FW:0x%x!", Checksum, FWChecksum);						
-						SleepMS(500);
-						ProgramCode = PROGRAM_CODE_CHECKSUM_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-				}
-				else
-				{				
-					ProgramCode = PROGRAM_CODE_CHECKSUM_ERROR;
-					Step=USB_UPGRADE_END;
-				}					
-				break;
-			case(USB_UPGRADE_EXIT):	
-				SleepMS(1000);				
-				ReCode = ftp_ReadReg(0x9F,&data[0]);
-				ReCode = ftp_ReadReg(0xA3,&data[1]);
-				printf("Exit Upgrade Mode, Times: %d, id1=%x, id2=%x \r\n", retry,data[1],data[0]);				
-				if((data[1]==0x58)&&(data[0]==0x22))
-				{					
-					Step=USB_UPGRADE_END;
-					retry=0;			
-					printf("Upgrade is successful! \r\n");
-				}
-				else
-				{
-					retry++;
-					if(retry==4)
-					{
-						ProgramCode = PROGRAM_CODE_RESET_SYSTEM_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-				}				
-				break;
-			case(USB_UPGRADE_END):
-				bUpgrading=false;
-				break;
-		}		
-			
-	}
-
-
-	return ProgramCode;
-}
-/**********************************************************
-HID_Program_Upgrade: Begin to upgrade
-***********************************************************/
-u8 HID_Program_Upgrade_3437U()
-{
-
-	u8 g_DataBuffer[64* 1024] = {0};		    
-    u8 ProgramCode = PROGRAM_CODE_OK;
-	int ReCode;
-	u8 ucMode = 0;
-	u8 data[64];
-	unsigned int Checksum = 0, DValue = 0, FWChecksum;
-	unsigned char bChecksum[4]={0};
-	unsigned int DataLen = 0, SentDataLen = 0;
-	u8 ucPacketType = 0;		
-	unsigned int Max_Length;
-	unsigned short usIcID;
-	const int UPGRADE_ID=0x542C;
-	u8 retry;
-	u8 Step;
-	bool bUpgrading=false;   
-    unsigned int i=0;
-
-
-
-    Max_Length = g_firmware_size;
-    
-    Max_Length =  (Max_Length+255)/256 * 256;
-
-	if(Max_Length > 64*1024)
-	    Max_Length = 64*1024;    
-	    
-	memset(g_DataBuffer, 0x00, Max_Length);
-	
-    ReCode = retrieve_data_from_firmware(g_DataBuffer, g_firmware_size);    
-
-	//Calculate FW checksum...
-	for(i=0; i<Max_Length; i+=4)
-	{
-		DValue = (g_DataBuffer[i + 3] << 24) + (g_DataBuffer[i + 2] << 16) +(g_DataBuffer[i + 1] << 8) + g_DataBuffer[i];
-		Checksum ^= DValue;
-	}
-
-	bChecksum[0] = ((unsigned char*)&Checksum)[0] + 1;
-	bChecksum[1] = ((unsigned char*)&Checksum)[1];
-	bChecksum[2] = ((unsigned char*)&Checksum)[2];
-	bChecksum[3] = ((unsigned char*)&Checksum)[3];
-
-	Checksum = ((unsigned int*)&bChecksum)[0];
-	
-
-	Step=0;
-	retry=0;
-	bUpgrading=true;
-	while(bUpgrading)
-	{
-		switch(Step)
-		{
-			case(USB_UPGRADE_ENTRY_BOOTLOADER):				
-				//Enter Upgrade Mode... AP->Bootloader
-				printf("Enter Upgrade Mode...\r\n");				
-				COMM_FLASH_EnterUpgradeMode();
-				SleepMS(500);
-				Step=USB_UPGRADE_ENTRY_UPGRADE;
-				retry=0; 
-				break;
-			case(USB_UPGRADE_ENTRY_UPGRADE):
-				//MessageBox(NULL, "Step=1", "Upgrade", MB_OK);
-				//BootLoader start to upgrade
-				ReCode = COMM_FLASH_EnterUpgradeMode();
-				if(ReCode == PROGRAM_CODE_OK)
-				{				
-					ReCode = COMM_FLASH_CheckCurrentState(&ucMode);
-					if(ucMode == 1) //1: Upgrade Mode; 2: FW Mode
-					{
-						Step=USB_UPGRADE_ERASE_FLASH;
-						retry=0;
-					}
-					else
-					{
-						SleepMS(200);	
-						printf("Get Current State, Times: %d...\r\n", retry++);
-						retry++;
-						if(retry==3)
-						{
-							printf("Failed to Get Current State! \r\n");
-							ProgramCode = PROGRAM_CODE_ENTER_UPGRADE_MODE_ERROR;
-							Step=USB_UPGRADE_END;
-						}			
-					}
-				}
-				else
-				{	
-					printf("Enter Upgrade Mode..%dS.\r\n", retry+1);
-					retry++;
-					if(retry==3)
-					{
-						printf("Failed to enter Upgrade Mode! \r\n");
-						ProgramCode = PROGRAM_CODE_ENTER_UPGRADE_MODE_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-					SleepMS(200);
-				}
-				break;
-			case(USB_UPGRADE_ERASE_FLASH):				
-				//Read chip id & Erase Flash
-				ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
-				if(ReCode == PROGRAM_CODE_OK)
-				{
-					ReCode = COMM_FLASH_USB_ReadUpdateID(&usIcID);
-					if(ReCode != PROGRAM_CODE_OK)
-					{
-						printf("Read FT3437U id error. \r\n");
-						ProgramCode = PROGRAM_CODE_CHIP_ID_ERROR;
-						Step=USB_UPGRADE_END;
-						continue;
-					}
-					else
-					{
-						if(UPGRADE_ID!=usIcID)
-						{
-							printf("FT3437U id error. \r\n");
-							ProgramCode = PROGRAM_CODE_CHIP_ID_ERROR;
-							Step=USB_UPGRADE_END;
-							continue;
-						}			
-					}		
-					COMM_FLASH_USB_EraseFlash();			
-					SleepMS(1000);
-					printf("Erase Time: 1S \r\n");
-					Step=USB_UPGRADE_CHECK_ERASE_READY;
-					retry=0;
-				}
-				else
-				{	
-				    SleepMS(50);				    
-					retry++;
-					if(retry==3)
-					{
-						printf("TP is not ready for upgrade \r\n");
-						ProgramCode = PROGRAM_CODE_ENTER_UPGRADE_MODE_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-				}
-				break;
-			case(USB_UPGRADE_CHECK_ERASE_READY):				
-				//Check Erase is Ready?
-				ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
-				if(ReCode == PROGRAM_CODE_OK)
-				{
-					Step=USB_UPGRADE_SEND_DATA;
-					retry=0;	
-					DataLen = 0;
-					SentDataLen=0;
-				}
-				else
-				{					
-					SleepMS(500);
-					retry++;
-					printf("Erase Time: %d.%dS \r\n", (1+retry/2),(5*(retry%2)));
-					if(retry==20)
-					{
-						printf("Erase Flash Error. \r\n"); 
-						ProgramCode = PROGRAM_CODE_ERASE_FLASH_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-				}
-				break;
-			case(USB_UPGRADE_SEND_DATA):				
-				//Send Packet Data 
-				if(SentDataLen < Max_Length)
-				{
-					if(retry==0)
-					{
-						DataLen=0;
-						memset(data, 0xff, sizeof(data));			
-						/*
-						if(SentDataLen == 0)			
-							ucPacketType = FIRST_PACKET;			
-						else if(SentDataLen >= Max_Length - MAX_USB_PACKET_SIZE)			
-							ucPacketType = END_PACKET;			
-						else			
-							ucPacketType = MID_PACKET;
-						*/
-						if(SentDataLen + MAX_USB_PACKET_SIZE > Max_Length)
-						{
-							memcpy(data, g_DataBuffer + SentDataLen, Max_Length - SentDataLen);
-							DataLen = Max_Length - SentDataLen;
-							ucPacketType = END_PACKET;
-						}
-						else
-						{				
-							memcpy(data, g_DataBuffer + SentDataLen, MAX_USB_PACKET_SIZE);
-							DataLen = MAX_USB_PACKET_SIZE;
-							if(SentDataLen)
-    							ucPacketType = MID_PACKET;
-						    else
-							    ucPacketType = FIRST_PACKET;
-						}
-						ReCode = COMM_FLASH_SendDataByUSB(ucPacketType, data, DataLen);						
-						retry++;
-					}
-
-					if(retry>0)
-					{	
-						SentDataLen += DataLen;
-						if (SentDataLen < Max_Length)
-    						{
-    							ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
-	    						if (PROGRAM_CODE_OK == ReCode)
-	    						{
-	    							printf("Updating %d bytes... \r\n", SentDataLen);
-	    							retry = 0;
-	    						}
-	    						else
-	    						{
-	    							SleepMS(1);
-	    							if (++retry > 20)
-	    							{
-	    								printf("Upgrade failed! \r\n");
-	    								ProgramCode = PROGRAM_CODE_WRITE_FLASH_ERROR;
-	    								COMM_FLASH_ExitUpgradeMode();		//Reset
-	    								Step = USB_UPGRADE_END;
-	    							}
-
-							}						
-						}
-					}
-				}				
-				else
-				{
-					//Write flash End and check ready (fw calculate checksum)
-					SleepMS(100); 
-					ReCode = COMM_FLASH_CheckTPIsReadyForUpgrade();
-					if(ReCode == PROGRAM_CODE_OK)	
-					{			
-						Step=USB_UPGRADE_CHECK_SUM;
-						retry=0;
-					}
-					else
-					{
-						if(++retry>5)
-						{
-							printf("Upgrade failed!");
-							ProgramCode = PROGRAM_CODE_WRITE_FLASH_ERROR;
-							COMM_FLASH_ExitUpgradeMode();		//Reset
-							Step=USB_UPGRADE_END;
-						}
-						
-					}
-				}
-				break;
-			case(USB_UPGRADE_CHECK_SUM):			
-				ReCode = COMM_FLASH_Checksum_Upgrade(&FWChecksum);
-				if(ReCode == PROGRAM_CODE_OK)
-				{				
-					if(Checksum == FWChecksum)
-					{  						
-						printf("Checksum Right, PC:0x%x, FW:0x%x!", Checksum, FWChecksum);
-						Step=USB_UPGRADE_EXIT;
-						retry=0;
-						COMM_FLASH_ExitUpgradeMode();		//Reset
-					}
-					else
-					{	
-						printf("Checksum error, PC:0x%x, FW:0x%x!", Checksum, FWChecksum);						
-						SleepMS(500);
-						ProgramCode = PROGRAM_CODE_CHECKSUM_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-				}
-				else
-				{				
-					ProgramCode = PROGRAM_CODE_CHECKSUM_ERROR;
-					Step=USB_UPGRADE_END;
-				}					
-				break;
-			case(USB_UPGRADE_EXIT):	
-				SleepMS(500);				
-				ReCode = ftp_ReadReg(0x9F,&data[0]);
-				ReCode = ftp_ReadReg(0xA3,&data[1]);
-				printf("Exit Upgrade Mode, Times: %d, id1=%x, id2=%x \r\n", retry,data[1],data[0]);				
-				if((data[1]==0x54)&&(data[0]==0x56))
-				{					
-					Step=USB_UPGRADE_END;
-					retry=0;
-					printf("Upgrade is successful! \r\n");
-				}
-				else
-				{
-					retry++;
-					if(retry==4)
-					{
-						ProgramCode = PROGRAM_CODE_RESET_SYSTEM_ERROR;
-						Step=USB_UPGRADE_END;
-					}
-				}				
-				break;
-			case(USB_UPGRADE_END):
-				bUpgrading=false;
-				break;
-		}		
-			
-	}
-
-
-	return ProgramCode;
-}
 /**********************************************************
 Run_Test: Test For debug
 ***********************************************************/
@@ -1437,4 +879,6 @@ void Run_Test(void)
 	}	
 		
 }
+
+
 

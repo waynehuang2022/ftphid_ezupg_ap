@@ -34,12 +34,12 @@
 
 //FTP_EZ_UPG_VERSION
 #ifndef FTP_EZ_UPG_VERSION
-#define	FTP_EZ_UPG_VERSION 	    "2.0"
+#define	FTP_EZ_UPG_VERSION 	    "2.1"
 #endif //FTP_EZ_UPG_VERSION
 
 // SW Release Date
 #ifndef FTP_EZ_UPG_RELEASE_DATE
-#define FTP_EZ_UPG_RELEASE_DATE	    "2024-07-16"
+#define FTP_EZ_UPG_RELEASE_DATE	    "2024-09-24"
 #endif //FTP_EZ_UPG_RELEASE_DATE
 
 // File Length
@@ -64,7 +64,6 @@ bool g_debug = false;
 
 // Firmware File Information
 char g_firmware_filename[FILE_NAME_LENGTH_MAX] = {0};
-char g_ic_name[FILE_NAME_LENGTH_MAX] = {0};
 // Firmware Inforamtion
 bool bFW_Ver = false;
 bool bSW_Ver = false;
@@ -195,13 +194,13 @@ int resource_init(void)
 			return ret;
 		}		
 
-		printf("FW Size = %d\r\n",g_firmware_size);
+		WriteLog("FW Size = %d",g_firmware_size);
 		
 		// Make Sure Firmware File Valid
 		//DEBUG_PRINTF("Firmware fd=%d, size=%d.\r\n", g_firmware_fd, g_firmware_size);
 		if((g_firmware_fd < 0) || (g_firmware_size <= 0))
 		{
-			ERROR_PRINTF("Fail to open firmware file \'%s\', size=%d, errno=0x%x.\r\n", \
+			WriteLog("Fail to open firmware file \'%s\', size=%d, errno=0x%x.", \
 	      		g_firmware_filename, g_firmware_size, g_firmware_fd);
 			return PROCESS_ERR_INVLID_FILE;
 			
@@ -241,54 +240,41 @@ int process_assignment(int argc, char **argv)
 	int pid_len = 0;	
 	char file_path[FILE_NAME_LENGTH_MAX] = {0};
 	char s_pid[FILE_NAME_LENGTH_MAX] = {0};
-	char p_file_name[FILE_NAME_LENGTH_MAX] = {0};
-	char *pch;
 	while((c = getopt_long (argc, argv, short_options, long_options, NULL)) != -1)
 	{
 		switch (c)
 		{
-		    case 'f':
-		    	DEBUG_PRINTF("Get Fw Verison\r\n");
+		    case 'f':				
+		    	WriteLog("Get Fw Verison\r\n");
 		    	bFW_Ver = true;
 			break;            
 		    case 'u':
 			   	file_path_len = strlen(optarg);
 				if ((file_path_len == 0) || (file_path_len > FILE_NAME_LENGTH_MAX))
 				{
-				    ERROR_PRINTF("%s: Firmware Path (%s) Invalid!\r\n", __func__, optarg);
+				    WriteLog("%s: Firmware Path (%s) Invalid!\r\n", __func__, optarg);
 				    ret = PROCESS_ERR_INVLID_PARAM;                   
 				}				
 				// Check if file path is valid
 				strcpy(file_path, optarg);                
 				if(strncmp(file_path, "", strlen(file_path)) == 0)
 				{
-				    ERROR_PRINTF("%s: NULL Firmware Path!\r\n", __func__);
+				    WriteLog("%s: NULL Firmware Path!\r\n", __func__);
 				    ret = PROCESS_ERR_INVLID_PARAM;                   
 				}
 				// Set FW Update Flag
 				bUpdate = true;
 				// Set Global File Path
 				strncpy(g_firmware_filename, file_path, strlen(file_path));
-				//strncpy(g_ic_name, file_path, strlen(file_path));
-				get_filename(file_path,p_file_name);
-				pch=strchr(p_file_name,'_');
-				
-				if(pch!=NULL)
-				{
-				 strncpy(g_ic_name, p_file_name, pch-p_file_name);
-				}
-				DEBUG_PRINTF("!!!!!!!!!!!!!!%s", g_ic_name);
-
-
-				DEBUG_PRINTF("%s: Update FW: %s, File Path: \"%s\".\r\n", __func__, (bUpdate) ? "Yes" : "No", g_firmware_filename);
-				DEBUG_PRINTF("Ready to Upgrade FW\r\n");
+				WriteLog("%s: Update FW: %s, File Path: \"%s\".\r\n", __func__, (bUpdate) ? "Yes" : "No", g_firmware_filename);
+				WriteLog("Ready to Upgrade FW\r\n");
 			break;
 			case 'v':
-		    	DEBUG_PRINTF("Get sw Verison\r\n");
+		    	WriteLog("Get sw Verison\r\n");
 		    	bSW_Ver = true;
 			break;   
 			case 't':
-				DEBUG_PRINTF("Test Mode\r\n");
+				WriteLog("Test Mode\r\n");
 				bTestRun = true;				
 			break;
 			case 'h':				
@@ -298,16 +284,16 @@ int process_assignment(int argc, char **argv)
 				pid_len = strlen(optarg);
 				if (pid_len == 0) 
 				{
-				    ERROR_PRINTF("%s: pid (%s) Invalid!\r\n", __func__, optarg);
+				    WriteLog("%s: pid (%s) Invalid!\r\n", __func__, optarg);
 				    ret = PROCESS_ERR_INVLID_PARAM;                   
 				}				
 				strcpy(s_pid, optarg);    
-				DEBUG_PRINTF("eztool get pid : %s", s_pid);
+				WriteLog("eztool get pid : %s", s_pid);
 				g_pid=strtol(s_pid,NULL,16);
 							
 			break;
 		    default:
-				DEBUG_PRINTF("Nothing\r\n");
+				WriteLog("Nothing\r\n");
 		    break;
 		    
 		}
@@ -330,55 +316,36 @@ int main(int argc, char **argv)
 	int ret = 0;		
 	u16 fw_ver = 0;	 
 
-	DEBUG_PRINTF("Focal Begin Test\r\n");
-	WriteLog("Focal Begin Test");
+	WriteLog("Focal Upgrade Begin");
 	ret = process_assignment(argc, argv);
 	ret = resource_init();
 	
 	if(ret)
-	{	    
-	    printf("Get Bin File Fail: %d", ret);
+	{   
 	    WriteLog("Get Bin File Fail: %d", ret);
-            return ret;
-    	}
+        return ret;
+    }
 	ret = open_device() ;
     if(ret)
-	{	    
-	    printf("Open Hid Device Fail: %d", ret);
+	{   
 	    WriteLog("Open Hid Device Fail: %d", ret);
         return ret;
     }	
 	
 	if(bFW_Ver)
 	{
-		get_fw_version_data(&fw_ver);	
-		printf("%x\r\n",fw_ver);
+		get_fw_version_data(&fw_ver);
+		printf("%x \r\n",fw_ver);
 		WriteLog("%x",fw_ver);
 	}
     if(bSW_Ver)
-    {
-        printf("%s_%s\r\n",FTP_EZ_UPG_VERSION, FTP_EZ_UPG_RELEASE_DATE);
+    {        
+    	printf("%s_%s \r\n",FTP_EZ_UPG_VERSION, FTP_EZ_UPG_RELEASE_DATE);
         WriteLog("%s_%s",FTP_EZ_UPG_VERSION, FTP_EZ_UPG_RELEASE_DATE);
-    }
+    }    
 	if(bUpdate)
 	{
-		if(strncmp(g_ic_name, "FT3637", strlen(g_ic_name)) == 0)
-		{
-			//ERROR_PRINTF("Supported(IC: %s  )  !\r\n", g_ic_name);       
-			HID_Program_Upgrade_3637();                
-		}else if(strncmp(g_ic_name, "FT3438", strlen(g_ic_name)) == 0)
-		{
-			//ERROR_PRINTF("Supported(IC: %s  )  !\r\n", g_ic_name);       
-			HID_Program_Upgrade_3438(); 
-		}else if(strncmp(g_ic_name, "FT3437U", strlen(g_ic_name)) == 0)
-		{
-			//ERROR_PRINTF("Supported(IC: %s  )  !\r\n", g_ic_name);       
-			HID_Program_Upgrade_3437U(); 
-		}else
-		{
-			ERROR_PRINTF("Not Supported(IC: %s  )  !\r\n", g_ic_name);              
-		}
-		
+		HID_Program_Upgrade();
 	}   
 
 	if(bTestRun)
@@ -386,11 +353,12 @@ int main(int argc, char **argv)
 
     if(g_help)
         show_help_information();
-
 		
 	ret = close_device();
 
 	ret = resource_free();
+
+	WriteLog("%d", ret);
 	
 	return ret;
 }

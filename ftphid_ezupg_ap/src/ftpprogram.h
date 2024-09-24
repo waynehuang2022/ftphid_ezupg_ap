@@ -22,6 +22,7 @@ head file, include get vrsion, upgrade function
  * Definitions
 **************************************************/
 
+
 /*******************************************
  * Global Variables Declaration
  ******************************************/
@@ -45,9 +46,7 @@ extern bool g_debug;
 	  extern "C" {
 #endif
 u8 get_fw_version_data(u16 *p_fw_version);
-u8 HID_Program_Upgrade_3438();
-u8 HID_Program_Upgrade_3637();
-u8 HID_Program_Upgrade_3437U();
+u8 HID_Program_Upgrade();
 void Run_Test(void);
 #ifdef __cplusplus
  }

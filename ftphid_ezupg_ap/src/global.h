@@ -75,7 +75,7 @@ const int FTP_IICHID_INPUT_BUFFER_SIZE  = 64;
 #endif 
 
 #ifndef _SAVE_LOG_
-#define _SAVE_LOG_ 						0
+#define _SAVE_LOG_ 						1
 #endif
 
 

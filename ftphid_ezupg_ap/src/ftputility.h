@@ -52,7 +52,6 @@ int retrieve_data_from_firmware(unsigned char *data, int data_size);
 int get_firmware_size(int fd, int *firmware_size);
 // Remark ID
 int get_remark_id_from_firmware(unsigned short *p_remark_id);
-void get_filename(const char *path,char *filename);
 #ifdef __cplusplus
  }
 #endif
