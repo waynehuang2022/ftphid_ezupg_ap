@@ -20,7 +20,7 @@ CXXFLAGS += -D__ENABLE_OUTBUF_DEBUG__
 CXXFLAGS += -D__ENABLE_INBUF_DEBUG__
 CXXFLAGS += -D__ENABLE_LOG_FILE_DEBUG__
 #CXXFLAGS += -D__ENABLE_SYSLOG_DEBUG__
-CXXFLAGS += -static
+#CXXFLAGS += -static
 INC_FLAGS += $(addprefix -I, $(include_path))
 LIB_FLAGS += $(addprefix -l, $(libraries))
 VPATH = $(include_path)
@@ -31,13 +31,13 @@ vpath %.cpp $(source_path)
 
 .PHONY: all
 all: $(objects)
-	$(CXX) $^ $(CXXFLAGS) $(INC_FLAGS) $(LIB_FLAGS) -o $(program)
+	$(CXX) $^ $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(INC_FLAGS) $(LIB_FLAGS) -o $(program)
 	@chmod 777 $(program)
 	@mv $(program) $(executable_path)
 	@rm -rf $^
 	
 %.o: %.cpp
-	$(CXX) -c $< $(CXXFLAGS) $(INC_FLAGS) $(LIB_FLAGS)
+	$(CXX) -c $< $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(INC_FLAGS) $(LIB_FLAGS)
 	
 .PHONY: clean
 clean: 
