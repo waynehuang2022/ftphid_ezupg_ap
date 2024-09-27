@@ -44,7 +44,7 @@ extern bool g_debug;
  * Function Prototype
  ******************************************/
 #ifdef __cplusplus
-	  extern "C" {
+extern "C" {
 #endif
 int open_firmware_file(char *filename, size_t filename_len, int *fd);
 int close_firmware_file(int fd);

@@ -599,8 +599,7 @@ u8 HID_Program_Upgrade()
 	unsigned short usIcID;		
 	u8 retry;
 	u8 Step;
-	bool bUpgrading=false;	 
-	unsigned int i=0;
+	bool bUpgrading=false;		
 
 	Step=0;
 	retry=0;

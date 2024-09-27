@@ -159,7 +159,7 @@ u8 FindHidrawDevice(int nVID, int nPID, char *pszDevicePath)
             continue;
 
         memset(szFile, 0, sizeof(szFile));
-        sprintf(szFile, "%s/%s", pszPath, pDirEntry->d_name);
+        snprintf(szFile, sizeof(pszPath)+sizeof(pDirEntry->d_name), "%s/%s", pszPath, pDirEntry->d_name);
 
         /* Open the Device with non-blocking reads. In real life,
           don't use a hard coded path; use libudev instead. */
@@ -222,7 +222,7 @@ u8 GetDeviceHandle(int nVID, int nPID)
     handle = open(szHidrawDevPath, O_RDWR | O_NONBLOCK);
     if (handle < 0)
     {
-        ERR("%s: Fail to Open Device %s! errno=%d.", __func__, szHidrawDevPath, handle);
+        WriteLog("%s: Fail to Open Device %s! errno=%d.", __func__, szHidrawDevPath, handle);
         return COMM_HID_FIND_NO_DEVICE;
     }
 

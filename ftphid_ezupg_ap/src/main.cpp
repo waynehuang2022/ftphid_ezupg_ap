@@ -254,18 +254,21 @@ int process_assignment(int argc, char **argv)
 				{
 				    WriteLog("%s: Firmware Path (%s) Invalid!\r\n", __func__, optarg);
 				    ret = PROCESS_ERR_INVLID_PARAM;                   
-				}				
+				}						
+				memset(file_path, '\0', FILE_NAME_LENGTH_MAX);
+				strncpy(file_path, optarg, FILE_NAME_LENGTH_MAX - 1);               				
 				// Check if file path is valid
-				strcpy(file_path, optarg);                
-				if(strncmp(file_path, "", strlen(file_path)) == 0)
+				//strcpy(file_path, optarg);				
+				if(strncmp(file_path, "", FILE_NAME_LENGTH_MAX) == 0)
 				{
 				    WriteLog("%s: NULL Firmware Path!\r\n", __func__);
 				    ret = PROCESS_ERR_INVLID_PARAM;                   
 				}
+				
 				// Set FW Update Flag
 				bUpdate = true;
-				// Set Global File Path
-				strncpy(g_firmware_filename, file_path, strlen(file_path));
+				// Set Global File Path				
+				strncpy(g_firmware_filename, file_path, FILE_NAME_LENGTH_MAX);				
 				WriteLog("%s: Update FW: %s, File Path: \"%s\".\r\n", __func__, (bUpdate) ? "Yes" : "No", g_firmware_filename);
 				WriteLog("Ready to Upgrade FW\r\n");
 			break;
@@ -338,22 +341,27 @@ int main(int argc, char **argv)
 		printf("%x \r\n",fw_ver);
 		WriteLog("%x",fw_ver);
 	}
+	
     if(bSW_Ver)
     {        
     	printf("%s_%s \r\n",FTP_EZ_UPG_VERSION, FTP_EZ_UPG_RELEASE_DATE);
         WriteLog("%s_%s",FTP_EZ_UPG_VERSION, FTP_EZ_UPG_RELEASE_DATE);
-    }    
+    }
+	
 	if(bUpdate)
 	{
 		HID_Program_Upgrade();
 	}   
 
 	if(bTestRun)
+	{
 		Run_Test();	
-
-    if(g_help)
+	}
+	
+    if(g_help == true)
+    {
         show_help_information();
-		
+    }	
 	ret = close_device();
 
 	ret = resource_free();

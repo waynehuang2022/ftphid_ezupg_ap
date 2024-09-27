@@ -80,7 +80,7 @@ const int FTP_IICHID_INPUT_BUFFER_SIZE  = 64;
 
 
 #ifndef HIDIOCSOUTPUT
-#warning Please have your distro update the userspace kernel headers
+//#warning Please have your distro update the userspace kernel headers
 #define HIDIOCSOUTPUT(len)   _IOC(_IOC_WRITE|_IOC_READ, 'H', 0x0B, len)
 #define HIDIOCGINPUT(len)    _IOC(_IOC_WRITE|_IOC_READ, 'H', 0x0A, len)
 #endif
@@ -95,8 +95,8 @@ Define Program Code
 #define	PROGRAM_CODE_ERASE_FLASH_ERROR			0x03
 #define	PROGRAM_CODE_WRITE_FLASH_ERROR			0x04
 #define	PROGRAM_CODE_READ_FLASH_ERROR			0x05
-#define	PROGRAM_CODE_CHECK_DATA_ERROR			0x06//Downloadʹ��
-#define	PROGRAM_CODE_CHECKSUM_ERROR				0x07//Upgradeʹ��
+#define	PROGRAM_CODE_CHECK_DATA_ERROR			0x06//Download
+#define	PROGRAM_CODE_CHECKSUM_ERROR				0x07//Upgrade
 #define	PROGRAM_CODE_CHIP_ID_ERROR				0x08
 #define	PROGRAM_CODE_ENTER_DEBUG_MODE_ERROR		0x09
 #define	PROGRAM_CODE_WRITE_ENABLE_ERROR			0x0a
@@ -196,7 +196,7 @@ extern u8* m_outBuf;
 extern u8 m_inBufSize;
 extern u8 m_outBufSize;
 extern sem_t m_ioMutex;
-extern u8 m_szOutputBuf[64];    // Command Raw Buffer
+extern u8 m_szOutputBuf[64];// Command Raw Buffer
 extern u8 m_szInputBuf[64]; // Data Raw Buffer
 
 #ifdef __cplusplus
