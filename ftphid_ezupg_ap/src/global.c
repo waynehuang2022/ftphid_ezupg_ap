@@ -133,7 +133,8 @@ u8 FindHidrawDevice(int nVID, int nPID, char *pszDevicePath)
     DIR *pDirectory = NULL;
     struct dirent *pDirEntry = NULL;
     const char *pszPath = "/dev";
-    char szFile[64] = {0};
+	char szName[50];
+    char szFile[64] = {0};	
     struct hidraw_devinfo info;
 
     // Check if filename ptr is valid
@@ -157,10 +158,10 @@ u8 FindHidrawDevice(int nVID, int nPID, char *pszDevicePath)
         // Only reserve hidraw devices
         if (strncmp(pDirEntry->d_name, "hidraw", 6))
             continue;
-
-        memset(szFile, 0, sizeof(szFile));
-        snprintf(szFile, sizeof(pszPath)+sizeof(pDirEntry->d_name), "%s/%s", pszPath, pDirEntry->d_name);
-
+        memset(szName, '\0', sizeof(szName));
+		memset(szFile, '\0', sizeof(szFile));		
+		strncpy(szName, pDirEntry->d_name, sizeof(szName));
+        snprintf(szFile, sizeof(szFile), "%s/%s", pszPath, szName);
         /* Open the Device with non-blocking reads. In real life,
           don't use a hard coded path; use libudev instead. */
         nError = open(szFile, O_RDWR | O_NONBLOCK);        

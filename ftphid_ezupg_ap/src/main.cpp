@@ -39,7 +39,7 @@
 
 // SW Release Date
 #ifndef FTP_EZ_UPG_RELEASE_DATE
-#define FTP_EZ_UPG_RELEASE_DATE	    "2024-09-24"
+#define FTP_EZ_UPG_RELEASE_DATE	    "2024-09-27"
 #endif //FTP_EZ_UPG_RELEASE_DATE
 
 // File Length
@@ -256,7 +256,7 @@ int process_assignment(int argc, char **argv)
 				    ret = PROCESS_ERR_INVLID_PARAM;                   
 				}						
 				memset(file_path, '\0', FILE_NAME_LENGTH_MAX);
-				strncpy(file_path, optarg, FILE_NAME_LENGTH_MAX - 1);               				
+				strncpy(file_path, optarg, FILE_NAME_LENGTH_MAX - 1);
 				// Check if file path is valid
 				//strcpy(file_path, optarg);				
 				if(strncmp(file_path, "", FILE_NAME_LENGTH_MAX) == 0)
@@ -366,7 +366,7 @@ int main(int argc, char **argv)
 
 	ret = resource_free();
 
-	WriteLog("%d", ret);
+	WriteLog("end return: %d", ret);
 	
 	return ret;
 }
