@@ -29,7 +29,7 @@ vpath %.cpp $(source_path)
 
 .PHONY: all
 all: $(objects)
-	$(CXX) $^ $(CXXFLAGS) $(CPPFLAGS) $(INC_FLAGS) $(LIB_FLAGS) -o $(program)
+	$(CXX) $^ $(CXXFLAGS) $(CPPFLAGS) $(LDFLAGS) $(INC_FLAGS) $(LIB_FLAGS) -o $(program)
 	@chmod 777 $(program)
 	@mv $(program) $(executable_path)
 	@rm -rf $^
