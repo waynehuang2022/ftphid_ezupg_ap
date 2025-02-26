@@ -46,8 +46,11 @@ extern bool g_debug;
 	  extern "C" {
 #endif
 u8 get_fw_version_data(u16 *p_fw_version);
+u8 get_boot_fw_version_data(u16 *p_fw_version);
 u8 HID_Program_Upgrade();
 void Run_Test(void);
+void auto_check_protocol();
+
 #ifdef __cplusplus
  }
 #endif

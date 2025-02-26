@@ -34,12 +34,12 @@
 
 //FTP_EZ_UPG_VERSION
 #ifndef FTP_EZ_UPG_VERSION
-#define	FTP_EZ_UPG_VERSION 	    "2.1"
+#define	FTP_EZ_UPG_VERSION 	    "2.4"
 #endif //FTP_EZ_UPG_VERSION
 
 // SW Release Date
 #ifndef FTP_EZ_UPG_RELEASE_DATE
-#define FTP_EZ_UPG_RELEASE_DATE	    "2024-09-27"
+#define FTP_EZ_UPG_RELEASE_DATE	    "2025-02-25"
 #endif //FTP_EZ_UPG_RELEASE_DATE
 
 // File Length
@@ -67,6 +67,7 @@ char g_firmware_filename[FILE_NAME_LENGTH_MAX] = {0};
 // Firmware Inforamtion
 bool bFW_Ver = false;
 bool bSW_Ver = false;
+bool bBL_Ver = false;
 // Flag for Firmware Update
 bool bUpdate = false;
 // Test
@@ -79,16 +80,17 @@ bool g_help = false;
 
 int g_pid =0;
 // Parameter Option Settings
-const char* const short_options = "u:fvthP:";
+const char* const short_options = "u:fbvthP:";
 
 
 const struct option long_options[] =
 {
 	{ "Upgrade",				1, NULL, 'u'},	
 	{ "get-fw-version",			0, NULL, 'f'},
+	{ "get-bootloader-version",		0, NULL, 'b'},
 	{ "get-sw-version",			0, NULL, 'v'},
-	{ "test",					0, NULL, 't'},	
-	{ "help",					0, NULL, 'h'},
+	{ "test",				0, NULL, 't'},	
+	{ "help",				0, NULL, 'h'},
 	{ "Set-Pid",				1, NULL, 'P'},
 };
 
@@ -115,17 +117,20 @@ void show_help_information(void)
 	printf("--------------------------------\r\n");
 	printf("------------API List------------\r\n");
 	printf("< Upgrade >\r\n");
-	printf("   -u <file_path>\r\n");
-	printf("   Ex: ftphid_ezupg_ap –u /lib/firmware/firmware.bin\r\n");
+	printf("   -u <file_path> -P <pid>\r\n");
+	printf("   Ex: ftphid_ezupg_ap –u /lib/firmware/firmware.bin -P 0101\r\n");
 	printf("<Get Fimware Version >\r\n");
-	printf("   -f \r\n");
-	printf("   Ex: ftphid_ezupg_ap –f\r\n");
+	printf("   -f -P <pid>\r\n");
+	printf("   Ex: ftphid_ezupg_ap –f -P 0101\r\n");
+	printf("<Get Bootloader Version >\r\n");
+	printf("   -b -P <pid>\r\n");
+	printf("   Ex: ftphid_ezupg_ap –b -P 0101\r\n");
 	printf("<Get Software Version >\r\n");
-	printf("   -v \r\n");
-	printf("   Ex: ftphid_ezupg_ap –v\r\n");
+	printf("   -v -P <pid>\r\n");
+	printf("   Ex: ftphid_ezupg_ap –v -P 0101\r\n");
 	printf("<Help >\r\n");
-	printf("   -h \r\n");
-	printf("   Ex: ftphid_ezupg_ap –h\r\n");
+	printf("   -h -P <pid>\r\n");
+	printf("   Ex: ftphid_ezupg_ap –h -P 0101\r\n");
 	printf("--------------------------------\r\n");
 	return;
 }
@@ -247,7 +252,11 @@ int process_assignment(int argc, char **argv)
 		    case 'f':				
 		    	WriteLog("Get Fw Verison\r\n");
 		    	bFW_Ver = true;
-			break;            
+			break;
+		    case 'b':				
+		    	WriteLog("Get Bootloader Verison\r\n");
+		    	bBL_Ver = true;
+			break;             
 		    case 'u':
 			   	file_path_len = strlen(optarg);
 				if ((file_path_len == 0) || (file_path_len > FILE_NAME_LENGTH_MAX))
@@ -318,7 +327,7 @@ int main(int argc, char **argv)
 {
 	int ret = 0;		
 	u16 fw_ver = 0;	 
-
+	u16 bl_ver = 0;
 	WriteLog("Focal Upgrade Begin");
 	ret = process_assignment(argc, argv);
 	ret = resource_init();
@@ -328,12 +337,16 @@ int main(int argc, char **argv)
 	    WriteLog("Get Bin File Fail: %d", ret);
         return ret;
     }
+    
 	ret = open_device() ;
     if(ret)
 	{   
 	    WriteLog("Open Hid Device Fail: %d", ret);
         return ret;
     }	
+
+	//cheek report
+	auto_check_protocol();
 	
 	if(bFW_Ver)
 	{
@@ -342,8 +355,16 @@ int main(int argc, char **argv)
 		WriteLog("%x",fw_ver);
 	}
 	
+	if(bBL_Ver)
+	{
+	 	//TODO add get bootloader version
+		get_boot_fw_version_data(&bl_ver);
+		printf("%x \r\n",bl_ver);
+		WriteLog("%x",bl_ver);
+	}
+	
     if(bSW_Ver)
-    {        
+    {
     	printf("%s_%s \r\n",FTP_EZ_UPG_VERSION, FTP_EZ_UPG_RELEASE_DATE);
         WriteLog("%s_%s",FTP_EZ_UPG_VERSION, FTP_EZ_UPG_RELEASE_DATE);
     }
@@ -361,7 +382,8 @@ int main(int argc, char **argv)
     if(g_help == true)
     {
         show_help_information();
-    }	
+    }
+    
 	ret = close_device();
 
 	ret = resource_free();

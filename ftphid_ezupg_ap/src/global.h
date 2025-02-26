@@ -151,7 +151,8 @@ Define HID CMD
 #define		CMD_ACK						0xf0
 #define		CMD_NACK					0xff
 #define		REPORT_SIZE					64
-#define 	MAX_USB_PACKET_SIZE			56
+#define 	MAX_USB_PACKET_SIZE_M1		56
+#define 	MAX_USB_PACKET_SIZE_M2  	52
 #define		FIRST_PACKET				0x00
 #define		SERIAL_PACKET				0x01
 #define		MID_PACKET					0x01
@@ -198,6 +199,8 @@ extern u8 m_outBufSize;
 extern sem_t m_ioMutex;
 extern u8 m_szOutputBuf[64];// Command Raw Buffer
 extern u8 m_szInputBuf[64]; // Data Raw Buffer
+//report mode
+extern u8 m_protocol;
 
 #ifdef __cplusplus
   extern "C" {
@@ -207,6 +210,7 @@ void global_init();
 u8 GetDeviceHandle(int nVID, int nPID);    
 u8 SendData(unsigned char* sBuf, int sLen);
 u8 ReadData(unsigned char* rBuf, int rLen);
+u8 WRData(unsigned char* sBuf, int sLen, unsigned char* rsBuf, int rlen);
 u8 GetDevVidPid(unsigned int* p_nVid, unsigned int* p_nPid);
 void CloseDevice(void);
 void global_free(void);

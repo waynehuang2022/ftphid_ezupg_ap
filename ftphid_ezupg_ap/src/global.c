@@ -29,7 +29,8 @@ bool g_bEnableErrorMsg = false;
 // Firmware File
 int g_firmware_fd;
 int g_firmware_size;
-
+fd_set m_fdsHidraw;
+struct timeval m_tvRead;
 int m_nHidrawFd = -1;  
 // Assign initial values to chip data
 u16 m_usVID = 0;
@@ -43,7 +44,8 @@ u8 m_outBufSize = 0;
 sem_t m_ioMutex;
 u8 m_szOutputBuf[64];    // Command Raw Buffer
 u8 m_szInputBuf[64]; // Data Raw Buffer
-
+//report mode
+u8 m_protocol = 1;
 
 /*******************************************
  *  Var Memory initialize
@@ -133,7 +135,7 @@ u8 FindHidrawDevice(int nVID, int nPID, char *pszDevicePath)
     DIR *pDirectory = NULL;
     struct dirent *pDirEntry = NULL;
     const char *pszPath = "/dev";
-	char szName[50];
+    char szName[50];
     char szFile[64] = {0};	
     struct hidraw_devinfo info;
 
@@ -156,12 +158,16 @@ u8 FindHidrawDevice(int nVID, int nPID, char *pszDevicePath)
     while ((pDirEntry = readdir(pDirectory)) != NULL)
     {
         // Only reserve hidraw devices
-        if (strncmp(pDirEntry->d_name, "hidraw", 6))
-            continue;
-        memset(szName, '\0', sizeof(szName));
-		memset(szFile, '\0', sizeof(szFile));		
-		strncpy(szName, pDirEntry->d_name, sizeof(szName));
-        snprintf(szFile, sizeof(szFile), "%s/%s", pszPath, szName);
+    	if (strncmp(pDirEntry->d_name, "hidraw", 6))
+        {    
+        	continue;
+        }
+        memset(szFile, '\0', sizeof(szFile));
+		strncpy(szName, pDirEntry->d_name, sizeof(szName) - 1); 
+		szName[sizeof(szName) - 1] = '\0';	
+		snprintf(szFile, sizeof(szFile), "%s/%s", pszPath, szName);
+	
+        
         /* Open the Device with non-blocking reads. In real life,
           don't use a hard coded path; use libudev instead. */
         nError = open(szFile, O_RDWR | O_NONBLOCK);        
@@ -178,9 +184,7 @@ u8 FindHidrawDevice(int nVID, int nPID, char *pszDevicePath)
            
             if ((info.vendor == nVID) && (info.product == nPID))
             {
-		//		m_usVID = (unsigned short) nVID;
-		//		m_usPID = (unsigned short) nPID;
-                memcpy(pszDevicePath, szFile, sizeof(szFile));
+		        memcpy(pszDevicePath, szFile, sizeof(szFile));
                 bFound = true;
             }
         }
@@ -239,14 +243,13 @@ SendData(): Send data to device
 u8 SendData(unsigned char* sBuf, int sLen)
 {
 
-    u8 ReCode = COMM_HID_OK;
-	u16 i = 0;
+    u8 ReCode = COMM_HID_OK;	
 	u32 nResult = 0;
 	
     if ((unsigned)sLen > m_outBufSize)
     {
         ReCode = COMM_HID_INVALID_BUFFER_SIZE;        
-//        ERR("%s: Send data length > defined size (sLen=%d, defined size=%d), ret=%d.\r\n", __func__, sLen, m_outBufSize, ReCode );        
+//      ERR("%s: Send data length > defined size (sLen=%d, defined size=%d), ret=%d.\r\n", __func__, sLen, m_outBufSize, ReCode );        
         return ReCode;
     }
     // Mutex locks the critical section
@@ -255,13 +258,12 @@ u8 SendData(unsigned char* sBuf, int sLen)
     memset(m_outBuf, 0xff, m_outBufSize);    
     memcpy(m_outBuf, sBuf, sLen);
 
-    // Send Buffer Data to hidraw device    
+	// Send Buffer Data to hidraw device        
 	nResult = ioctl(m_nHidrawFd, HIDIOCSFEATURE(FTP_IICHID_OUTPUT_BUFFER_SIZE), m_outBuf);
 
 	if (nResult < 0)
 	{
-	    ReCode = COMM_HID_WRITE_USB_ERROR;
-		printf("error read HIDIOCSOUTPUT");    
+	    ReCode = COMM_HID_WRITE_USB_ERROR;		
     }   
         
     // Mutex unlocks the critical section
@@ -276,8 +278,7 @@ ReadData(): Read data for device
 u8 ReadData(unsigned char* rBuf, int rLen)
 {    
 
-	u8 ReCode = COMM_HID_OK;
-	u16 i = 0;
+	u8 ReCode = COMM_HID_OK;	
 	u32 nResult = 0;
 	
     nResult = 0;
@@ -285,11 +286,14 @@ u8 ReadData(unsigned char* rBuf, int rLen)
     // Mutex locks the critical section
     sem_wait(&m_ioMutex);   
 
+	memset(m_inBuf, 0, m_outBufSize);
+		
 	m_inBuf[0] = 0x06; /* Report Number */	
 	nResult = ioctl(m_nHidrawFd, HIDIOCGFEATURE(FTP_IICHID_INPUT_BUFFER_SIZE), m_inBuf);
 	
-	if (nResult < 0) {
-		printf("error HIDIOCGFEATURE");
+	
+	if (nResult < 0) 
+	{		
 		ReCode = COMM_HID_READ_USB_ERROR;
 	}
 	else
@@ -302,6 +306,77 @@ u8 ReadData(unsigned char* rBuf, int rLen)
 
     return ReCode;
 }
+
+
+/**************************************************
+WRData(): outreport Read / Write 
+***************************************************/
+u8 WRData(unsigned char* sBuf, int sLen, unsigned char* rsBuf, int rlen)
+{
+
+    u8 ReCode = COMM_HID_OK;
+	u16 i = 0;	
+	u32 nResult = 0;		
+	
+    if ((unsigned)sLen > m_outBufSize)
+    {
+        ReCode = COMM_HID_INVALID_BUFFER_SIZE;
+        return ReCode;
+    }
+	
+    // Mutex locks the critical section
+    sem_wait(&m_ioMutex);
+	
+    // Copy data to local buffer and write buffer data to usb
+    memset(m_outBuf, 0xff, m_outBufSize);    
+    memcpy(m_outBuf, sBuf, sLen);
+    
+	FD_ZERO(&m_fdsHidraw);
+    // Add hidraw device handler to file descriptor monitor
+    FD_SET(m_nHidrawFd, &m_fdsHidraw);
+
+	for (i = 0;  i < 10; i++)
+    {
+		nResult = write(m_nHidrawFd, m_outBuf, m_outBufSize);
+		if(nResult >= 0)
+			break;
+    }
+
+	if (nResult < 0)
+	{
+	    ReCode = COMM_HID_WRITE_USB_ERROR;		
+    }       	
+
+	// Set wait time up to nTimeout millisecond
+    m_tvRead.tv_sec = 500 / 1000; // sec
+    m_tvRead.tv_usec = (500 % 1000) * 1000; // usec
+
+	// Add file descriptor & timeout to file descriptor monitor
+    select(m_nHidrawFd+1, &m_fdsHidraw, NULL, NULL, &m_tvRead);
+    
+    memset(m_inBuf, 0, m_inBufSize);
+
+    if (FD_ISSET(m_nHidrawFd, &m_fdsHidraw))
+    {
+        nResult = read(m_nHidrawFd, m_inBuf, m_inBufSize);        
+    }	
+
+	if (nResult < 0) 
+	{		
+		ReCode = COMM_HID_READ_USB_ERROR;
+	}
+	else
+	{
+	    memcpy(rsBuf, m_inBuf, rlen);
+	}
+        
+    // Mutex unlocks the critical section
+    sem_post(&m_ioMutex);
+
+    return ReCode;
+}
+
+
 
 /**************************************************
 GetDevVidPid(): Get current device VID,PID
@@ -346,7 +421,7 @@ void WriteLog(const char *pszFormat, ...)
     time_t m_tRawTime;
     struct timeval m_tvCurTime;
     char m_szDateBuffer[80];
-    char m_szDateTimeBuffer[88];
+    char m_szDateTimeBuffer[94];
     FILE *fd;
     char szLogBuffer[LOG_BUF_SIZE] = {0};
     va_list pArgs;
@@ -381,4 +456,8 @@ void WriteLog(const char *pszFormat, ...)
     fclose(fd);
     return;
 }
+
+
+
+
 

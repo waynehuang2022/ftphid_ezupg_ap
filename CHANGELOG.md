@@ -1,5 +1,13 @@
 # Changelog
 
+## [2.4] - 2025-02-25
+### Added
+- Support for touchscreen devices
+
+## [2.3] - 2024-10-15
+### Added
+- add LDFlag
+
 ## [2.2] - 2024-09-30
 ### Added
 - ChangeLog
