@@ -34,12 +34,12 @@
 
 //FTP_EZ_UPG_VERSION
 #ifndef FTP_EZ_UPG_VERSION
-#define	FTP_EZ_UPG_VERSION 	    "2.4"
+#define	FTP_EZ_UPG_VERSION 	    "2.5"
 #endif //FTP_EZ_UPG_VERSION
 
 // SW Release Date
 #ifndef FTP_EZ_UPG_RELEASE_DATE
-#define FTP_EZ_UPG_RELEASE_DATE	    "2025-02-25"
+#define FTP_EZ_UPG_RELEASE_DATE	    "2025-10-16"
 #endif //FTP_EZ_UPG_RELEASE_DATE
 
 // File Length

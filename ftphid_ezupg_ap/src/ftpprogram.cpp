@@ -2010,7 +2010,7 @@ u8 HID_Program_Upgrade()
 		{
 			Program_Upgrade5822(ucStep);
 		}
-		else if(usIcID == 0x5456 || usIcID == 0x5422) //FT3437U
+		else if(usIcID == 0x5456 || usIcID == 0x542C) //FT3437U
 		{
 			Program_Upgrade5456(ucStep);
 		}
@@ -2101,6 +2101,5 @@ void Run_Test(void)
 	}	
 		
 }
-
 
 

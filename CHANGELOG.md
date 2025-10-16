@@ -1,4 +1,7 @@
 # Changelog
+## [2.5] - 2025-10-16
+### Added
+- Correct the IC ID check for update flow.
 
 ## [2.4] - 2025-02-25
 ### Added
