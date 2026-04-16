@@ -1,4 +1,9 @@
 # Changelog
+## [2.6] - 2026-04-16
+### Added
+- Refine the update process to improve stability for certain ICs.
+
+# Changelog
 ## [2.5] - 2025-10-16
 ### Added
 - Correct the IC ID check for update flow.

@@ -2068,14 +2068,26 @@ u8 get_boot_fw_version_data(u16 *p_fw_version)
 ******************************************/
 void auto_check_protocol()
 {
-	u8 value = 0xff;
-	u8 Recode = COMM_HID_OK;
-
+		
+	u8 ReCode = COMM_HID_OK; 
+	u8 CmdPacket[REPORT_SIZE];
+	u8 RePacket[REPORT_SIZE];
+	memset(CmdPacket, 0xff, REPORT_SIZE);
+	memset(RePacket, 0xff, REPORT_SIZE); 	
+	CmdPacket[0] = CMD_READ_REGISTER;
+	CmdPacket[1] = 0xa6;	
 	m_protocol = 1;
-	Recode = ftp_ReadReg(0x00, &value);
-	if(Recode == COMM_HID_OK && value == 0)
-		return;	
-  	m_protocol = 0;
+	ReCode = ftp_hid_io(CmdPacket, 2, RePacket, 0); //Write 	
+	usleep(200);	
+	ReCode = ftp_hid_io(CmdPacket, 0, RePacket, 8); //Read	
+	if(ReCode == COMM_HID_OK)
+	{
+		if((RePacket[RePacket[3]] == GetChecksum(RePacket+1, RePacket[3]-1)) && (RePacket[4] == CMD_READ_REGISTER))	//check crc
+		{		
+			return;
+		}
+	}
+	m_protocol = 0;		
 }
 
 /**********************************************************
